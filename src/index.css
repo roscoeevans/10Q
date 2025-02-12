@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  --color-blue: #6FD6FD;
+  --color-orange: #FF9770;
+  --color-pink: #FE6EA5;
+  --color-white: #FFFFFF;
+  --color-yellow: #E9FE71;
+}
+
+/* Apply global styles */
+html, body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  display: flex;
+}
+
+#root {
+  width: 100%;
+  flex-grow: 1;
+}
+
+/* Update button styles */
+button {
+  border-radius: 8px;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.25s, border-color 0.25s;
+}
+
+input {
+  background-color: var(--color-secondary);
+  border: 2px solid var(--color-detail);
+  color: var(--color-text);
+  padding: 0.5em;
+  border-radius: 6px;
+  font-size: 1em;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--color-text);
+}
