@@ -1,37 +1,55 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 const questions = [
-  "What is the capital of France?",
-  "Who wrote 'To Kill a Mockingbird'?",
-  "What is 5 + 7?",
-  "Name a programming language that starts with 'P'.",
-  "What is the chemical symbol for gold?",
-  "Who painted the Mona Lisa?",
-  "What year did the Titanic sink?",
-  "What is the largest planet in our solar system?",
-  "Who discovered gravity?",
-  "What is the square root of 64?"
+  { question: "What is the capital of France?", options: ["Paris", "London", "Berlin", "Madrid"] },
+  { question: "Who wrote 'To Kill a Mockingbird'?", options: ["Harper Lee", "Mark Twain", "J.K. Rowling", "Ernest Hemingway"] },
+  { question: "What is 5 + 7?", options: ["12", "10", "14", "15"] },
+  { question: "Name a programming language that starts with 'P'.", options: ["Python", "Perl", "PHP", "Pascal"] },
+  { question: "What is the chemical symbol for gold?", options: ["Au", "Ag", "Pb", "Fe"] },
+  { question: "Who painted the Mona Lisa?", options: ["Leonardo da Vinci", "Vincent van Gogh", "Pablo Picasso", "Claude Monet"] },
+  { question: "What year did the Titanic sink?", options: ["1912", "1905", "1898", "1923"] },
+  { question: "What is the largest planet in our solar system?", options: ["Jupiter", "Saturn", "Earth", "Neptune"] },
+  { question: "Who discovered gravity?", options: ["Isaac Newton", "Albert Einstein", "Galileo Galilei", "Nikola Tesla"] },
+  { question: "What is the square root of 64?", options: ["8", "6", "10", "12"] }
 ];
+
+const TIMER_DURATION = 10.0; // seconds
 
 export default function Quiz() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answer, setAnswer] = useState("");
+  const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
+  const [results, setResults] = useState([]);
+  const navigate = useNavigate();
 
-  const handleNext = () => {
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 0.1) {
+          clearInterval(timer);
+          handleNext(null);
+          return TIMER_DURATION;
+        }
+        return parseFloat((prev - 0.1).toFixed(1));
+      });
+    }, 100);
+    return () => clearInterval(timer);
+  }, [currentQuestion]);
+
+  const handleNext = (userAnswer) => {
+    const correctAnswer = questions[currentQuestion].options[0];
+    const updatedResults = [...results, { 
+      question: questions[currentQuestion].question, 
+      userAnswer: userAnswer || "Not Answered", 
+      correctAnswer 
+    }];
+    setResults(updatedResults);
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
-      setAnswer(""); // Clear input for next question
+      setTimeLeft(TIMER_DURATION);
     } else {
-      alert("Quiz completed! Redirecting to results...");
-      // TODO: Navigate to results page
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(currentQuestion - 1);
-      setAnswer("");
+      navigate("/results", { state: { results: updatedResults } });
     }
   };
 
@@ -43,54 +61,29 @@ export default function Quiz() {
       exit={{ opacity: 0, x: -50 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Animated Gradient Background */}
       <motion.div
         className="fixed inset-0 w-screen h-screen bg-gradient-to-r from-blue-500 via-pink-500 to-orange-500 blur-[120px] opacity-90 pointer-events-none"
-        style={{
-          backgroundImage: "linear-gradient(90deg, #0000FF 20%, #FF1493 50%, #FFA500 80%)"
-        }}
-        animate={{
-          rotate: [0, 360],
-          scale: [3.0, 3.0, 3.0]
-        }}
+        animate={{ rotate: [0, 360], scale: [3.0, 3.0, 3.0] }}
         transition={{ repeat: Infinity, duration: 60, ease: "linear" }}
       ></motion.div>
 
-      {/* Question centered on screen */}
       <div className="relative z-10 flex flex-col items-center justify-center flex-grow w-full max-w-lg">
         <p className="text-2xl md:text-3xl font-bold text-center leading-snug text-white">
-          {questions[currentQuestion]}
+          {questions[currentQuestion].question}
         </p>
+        <p className="mt-2 text-lg font-semibold text-white">{timeLeft}s</p>
       </div>
 
-      {/* Footer with input and navigation arrows */}
       <div className="relative z-10 w-full max-w-lg mt-auto pb-10 flex flex-col items-center space-y-4">
-        <input
-          type="text"
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Type your answer..."
-          className="w-full px-4 py-3 border-2 border-white rounded-md bg-transparent text-white placeholder-white/70 text-lg focus:outline-none focus:ring-2 focus:ring-white transition-all duration-300"
-        />
-        <div className="flex justify-between w-full mt-4">
-          <motion.button
-            onClick={handlePrev}
-            disabled={currentQuestion === 0}
-            whileTap={{ scale: 0.85 }}
-            className="text-white text-6xl bg-transparent p-6 focus:outline-none focus-visible:ring-0 active:bg-transparent transition-transform"
-            onMouseDown={(e) => e.preventDefault()}
+        {questions[currentQuestion].options.map((option, index) => (
+          <button
+            key={index}
+            onClick={() => handleNext(option)}
+            className="w-full px-4 py-3 border-2 border-white rounded-md bg-transparent text-white text-lg hover:bg-white hover:text-black transition-all duration-300"
           >
-            &#8592;
-          </motion.button>
-          <motion.button
-            onClick={handleNext}
-            whileTap={{ scale: 0.85 }}
-            className="text-white text-6xl bg-transparent p-6 focus:outline-none focus-visible:ring-0 active:bg-transparent transition-transform"
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            &#8594;
-          </motion.button>
-        </div>
+            {option}
+          </button>
+        ))}
       </div>
     </motion.div>
   );
