@@ -15,12 +15,19 @@ const questions = [
   { question: "What is the square root of 64?", options: ["8", "6", "10", "12"] }
 ];
 
-const TIMER_DURATION = 10.0; // seconds
+const TIMER_DURATION = 12.0; // seconds
+
+type Result = {
+  question: string;
+  userAnswer: string;
+  correctAnswer: string;
+  timeLeft: number;
+};
 
 export default function Quiz() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState<Result[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,19 +44,21 @@ export default function Quiz() {
     return () => clearInterval(timer);
   }, [currentQuestion]);
 
-  const handleNext = (userAnswer) => {
+  const handleNext = (userAnswer: string | null) => {
     const correctAnswer = questions[currentQuestion].options[0];
-    const updatedResults = [...results, { 
-      question: questions[currentQuestion].question, 
-      userAnswer: userAnswer || "Not Answered", 
-      correctAnswer 
-    }];
-    setResults(updatedResults);
+    const updatedResult: Result = {
+      question: questions[currentQuestion].question,
+      userAnswer: userAnswer || "Not Answered",
+      correctAnswer,
+      timeLeft: timeLeft
+    };
+    setResults((prevResults) => [...prevResults, updatedResult]);
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
       setTimeLeft(TIMER_DURATION);
     } else {
-      navigate("/results", { state: { results: updatedResults } });
+      console.log("Final results before navigating:", [...results, updatedResult]); // Debugging
+      navigate("/results", { state: { results: [...results, updatedResult] } });
     }
   };
 

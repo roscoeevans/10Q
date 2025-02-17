@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -6,6 +6,22 @@ export default function Results() {
   const location = useLocation();
   const navigate = useNavigate();
   const results = location.state?.results || [];
+
+  // Debugging: Log results to check if timeLeft is being recorded properly
+  useEffect(() => {
+    console.log("Quiz Results Data (checking timeLeft):", results);
+    results.forEach((result, index) => {
+      console.log(`Question ${index + 1}:`, result.question, "| Time Left:", result.timeLeft);
+    });
+  }, [results]);
+
+  // Calculate total score
+  const totalScore = results.reduce((acc, result) => {
+    if (result.userAnswer === result.correctAnswer) {
+      return acc + 10 + (result.timeLeft ?? 0);
+    }
+    return acc;
+  }, 0).toFixed(1).replace(/\.0+$/, "");
 
   return (
     <motion.div
@@ -23,9 +39,19 @@ export default function Results() {
 
       <div className="relative z-10 flex flex-col items-center w-full max-w-lg h-full overflow-y-auto">
         <h1 className="text-3xl font-bold text-center text-white">Quiz Results</h1>
+
+        {/* Score Display */}
+        <div className="mt-4 text-xl font-semibold text-center text-white bg-gray-800 px-6 py-3 rounded-lg">
+          Total Score: <span className="text-yellow-300">{totalScore} points</span>
+        </div>
+
         <ul className="mt-6 space-y-4 w-full">
           {results.map((result, index) => {
+            console.log("Processing result:", result); // Debugging
             const isCorrect = result.userAnswer === result.correctAnswer;
+            const timeBonus = result.timeLeft ?? 0;
+            const score = isCorrect ? (10 + timeBonus).toFixed(1).replace(/\.0+$/, "") : 0;
+
             return (
               <li
                 key={index}
@@ -34,10 +60,17 @@ export default function Results() {
                 <p className="font-semibold">{result.question}</p>
                 <p className="text-sm text-gray-300">Your Answer: {result.userAnswer || "Not Answered"}</p>
                 <p className="text-sm text-gray-300">Correct Answer: {result.correctAnswer}</p>
+                <p className="text-sm text-gray-300">Time Left: {timeBonus} seconds</p>
+                {isCorrect ? (
+                  <p className="text-sm font-bold text-yellow-300">Score: {score} points (includes {timeBonus} sec time bonus)</p>
+                ) : (
+                  <p className="text-sm font-bold text-yellow-300">Score: 0 points</p>
+                )}
               </li>
             );
           })}
         </ul>
+
         <button
           onClick={() => navigate("/")}
           className="mt-6 px-6 py-3 bg-white text-black rounded-md text-lg font-semibold hover:bg-gray-200 transition-all duration-300"
