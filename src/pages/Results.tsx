@@ -7,6 +7,11 @@ export default function Results() {
   const navigate = useNavigate();
   const results = location.state?.results || [];
 
+  // Prevent user from retaking the quiz
+  useEffect(() => {
+    localStorage.setItem("quizCompleted", "true");
+  }, []);
+
   // Debugging: Log results to check if timeLeft is being recorded properly
   useEffect(() => {
     console.log("Quiz Results Data (checking timeLeft):", results);
@@ -22,6 +27,14 @@ export default function Results() {
     }
     return acc;
   }, 0).toFixed(1).replace(/\.0+$/, "");
+
+  const shareResults = () => {
+    const emojiResults = results.map(result => result.userAnswer === result.correctAnswer ? "🟩" : "🟥").join(" ");
+    const date = new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
+    const message = `10Q - ${date}\nScore: ${totalScore} points\n${emojiResults}\n\nCan you beat my score?`;
+    const smsLink = `sms:?body=${encodeURIComponent(message)}`;
+    window.location.href = smsLink;
+  };
 
   return (
     <motion.div
@@ -76,6 +89,13 @@ export default function Results() {
           className="mt-6 px-6 py-3 bg-white text-black rounded-md text-lg font-semibold hover:bg-gray-200 transition-all duration-300"
         >
           Go to Home
+        </button>
+
+        <button
+          onClick={shareResults}
+          className="mt-4 px-6 py-3 bg-blue-500 text-white rounded-md text-lg font-semibold hover:bg-blue-600 transition-all duration-300"
+        >
+          Challenge Your Friends
         </button>
       </div>
     </motion.div>
