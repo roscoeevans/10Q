@@ -44,6 +44,15 @@ export const generateQOTD = onSchedule(
       selectedQuestions = [...selectedQuestions, ...randomQuestions];
     }
 
+    // 🔹 Step 2.5: Update the "lastUsed" field for each selected question
+    const batch = db.batch();
+    selectedQuestions.forEach((questionId) => {
+      const questionDocRef = questionsRef.doc(questionId);
+      batch.update(questionDocRef, { lastUsed: formattedDate });
+    });
+    await batch.commit();
+    console.log(`✅ Updated lastUsed for ${selectedQuestions.length} questions.`);
+
     // 🔹 Step 3: Save today's questions in "qotd" collection
     await db.collection("qotd").doc(formattedDate).set({
       date: formattedDate,

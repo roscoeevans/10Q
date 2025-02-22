@@ -9,7 +9,7 @@ export default function Results() {
 
   // Calculate total score
   const totalScore = userAnswers.reduce((acc, answer) => {
-    return answer.selected === answer.correct ? acc + 10 : acc;
+    return answer.selected.toLowerCase() === answer.correct.toLowerCase() ? acc + 10 : acc;
   }, 0);
 
   const shareResults = () => {
@@ -44,7 +44,7 @@ export default function Results() {
 
         <ul className="mt-6 space-y-4 w-full">
   {userAnswers.map((answer, index) => {
-    const isCorrect = answer.selected === answer.correct;
+    const isCorrect = answer.selected.toLowerCase() === answer.correct.toLowerCase();
 
     return (
       <li

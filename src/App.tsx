@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Quiz from "./pages/Quiz";
 import Results from "./pages/Results";
-import AddQuestions from "./pages/AddQuestions"; // Generalized question adding page
+import AddQuestions from "./pages/AddQuestions";
 
 function App() {
   return (

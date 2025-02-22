@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 const TIMER_DURATION = 12.0;
 
-function shuffleArray(array: string[]) {
+function shuffleArray(array) {
   return [...array].sort(() => Math.random() - 0.5);
 }
 
@@ -15,8 +15,9 @@ export default function Quiz() {
     question: string;
     choices: string[];
     correctAnswer: string;
+    id: string;
   };
-
+  
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
@@ -25,6 +26,8 @@ export default function Quiz() {
   const [userAnswers, setUserAnswers] = useState<{ question: string; selected: string; correct: string }[]>([]);
   const navigate = useNavigate();
 
+  let anonID = localStorage.getItem("anonymousID") || "";
+  
   useEffect(() => {
     async function fetchQOTD() {
       const today = new Date()
@@ -61,8 +64,10 @@ export default function Quiz() {
           .map((q) => {
             const questionData = q.data();
             return {
-              ...questionData,
+              question: questionData.question,
               choices: shuffleArray(questionData.choices),
+              correctAnswer: questionData.answer,
+              id: q.id,
             };
           });
 
@@ -91,48 +96,54 @@ export default function Quiz() {
     }
   }, [timeLeft]);
 
-  const handleNext = (userAnswer: string | null) => {
+  const handleNext = async (userAnswer) => {
     if (questions.length === 0) return;
-  
-    // Save user's answer
-    if (userAnswer !== null) {
-      setUserAnswers((prev) => [
-        ...prev,
-        {
-          question: questions[currentQuestion].question,
-          selected: userAnswer,
-          correct: questions[currentQuestion].correctAnswer, // Ensure correct answer is passed
-        },
-      ]);
-    }
-  
-    // Move to next question or navigate to results
+
+    const today = new Date()
+      .toLocaleDateString("en-US", {
+        timeZone: "America/New_York",
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      })
+      .replace(/\//g, "-");
+
+    const currentQ = questions[currentQuestion];
+    const isCorrect = userAnswer?.toLowerCase() === currentQ.correctAnswer.toLowerCase();
+    
+    const newAnswer = {
+      question: currentQ.question,
+      selected: userAnswer,
+      correct: currentQ.correctAnswer,
+    };
+
+    setUserAnswers((prev) => [...prev, newAnswer]);
+
+// Update Firestore
+try {
+  const questionRef = doc(db, "questions", currentQ.id, "responses", anonID);
+  await setDoc(questionRef, { response: userAnswer, isCorrect });
+
+  const userRef = doc(db, "users", anonID, "qotd", today, "responses", currentQ.id);
+  await setDoc(userRef, { response: userAnswer, isCorrect });
+} catch (error) {
+  console.error("Error updating Firestore:", error);
+}
+
     if (currentQuestion + 1 < questions.length) {
       setCurrentQuestion((prev) => prev + 1);
       setTimeLeft(TIMER_DURATION);
     } else {
-      navigate("/results", { state: { userAnswers: [...userAnswers, { 
-        question: questions[currentQuestion].question,
-        selected: userAnswer,
-        correct: questions[currentQuestion].correctAnswer
-      }] }}); // Include last question's answer when navigating
+      navigate("/results", { state: { userAnswers: [...userAnswers, newAnswer] } });
     }
-  };  
+  };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-white text-2xl">
-        Loading today's quiz...
-      </div>
-    );
+    return <div className="flex justify-center items-center h-screen text-white text-2xl">Loading today's quiz...</div>;
   }
 
   if (error) {
-    return (
-      <div className="flex justify-center items-center h-screen text-white text-2xl">
-        {error}
-      </div>
-    );
+    return <div className="flex justify-center items-center h-screen text-white text-2xl">{error}</div>;
   }
 
   return (

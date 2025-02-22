@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -9,6 +9,14 @@ const pageVariants = {
 };
 
 export default function Home() {
+  useEffect(() => {
+    let anonID = localStorage.getItem("anonymousID");
+    if (!anonID) {
+      anonID = `user-${Math.random().toString(36).slice(2, 11)}`;
+      localStorage.setItem("anonymousID", anonID);
+    }
+    console.log("User Anonymous ID:", anonID);
+  }, []);
   return (
     <motion.div
       className="relative flex flex-col items-center justify-center min-h-screen text-center px-6 overflow-hidden"
