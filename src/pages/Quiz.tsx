@@ -1,66 +1,150 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "../firebase";
 
-const questions = [
-  { question: "What is the capital of France?", options: ["Paris", "London", "Berlin", "Madrid"] },
-  { question: "Who wrote 'To Kill a Mockingbird'?", options: ["Harper Lee", "Mark Twain", "J.K. Rowling", "Ernest Hemingway"] },
-  { question: "What is 5 + 7?", options: ["12", "10", "14", "15"] },
-  { question: "Name a programming language that starts with 'P'.", options: ["Python", "Perl", "PHP", "Pascal"] },
-  { question: "What is the chemical symbol for gold?", options: ["Au", "Ag", "Pb", "Fe"] },
-  { question: "Who painted the Mona Lisa?", options: ["Leonardo da Vinci", "Vincent van Gogh", "Pablo Picasso", "Claude Monet"] },
-  { question: "What year did the Titanic sink?", options: ["1912", "1905", "1898", "1923"] },
-  { question: "What is the largest planet in our solar system?", options: ["Jupiter", "Saturn", "Earth", "Neptune"] },
-  { question: "Who discovered gravity?", options: ["Isaac Newton", "Albert Einstein", "Galileo Galilei", "Nikola Tesla"] },
-  { question: "What is the square root of 64?", options: ["8", "6", "10", "12"] }
-];
+const TIMER_DURATION = 12.0;
 
-const TIMER_DURATION = 12.0; // seconds
-
-type Result = {
-  question: string;
-  userAnswer: string;
-  correctAnswer: string;
-  timeLeft: number;
-};
+function shuffleArray(array) {
+  return [...array].sort(() => Math.random() - 0.5);
+}
 
 export default function Quiz() {
+  type Question = {
+    question: string;
+    choices: string[];
+    correctAnswer: string;
+    id: string;
+  };
+  
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
-  const [results, setResults] = useState<Result[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userAnswers, setUserAnswers] = useState<{ question: string; selected: string; correct: string }[]>([]);
   const navigate = useNavigate();
 
+  let anonID = localStorage.getItem("anonymousID") || "";
+  
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 0.1) {
-          clearInterval(timer);
-          handleNext(null);
-          return TIMER_DURATION;
-        }
-        return parseFloat((prev - 0.1).toFixed(1));
-      });
-    }, 100);
-    return () => clearInterval(timer);
-  }, [currentQuestion]);
+    async function fetchQOTD() {
+      const today = new Date()
+        .toLocaleDateString("en-US", {
+          timeZone: "America/New_York",
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        })
+        .replace(/\//g, "-");
 
-  const handleNext = (userAnswer: string | null) => {
-    const correctAnswer = questions[currentQuestion].options[0];
-    const updatedResult: Result = {
-      question: questions[currentQuestion].question,
-      userAnswer: userAnswer || "Not Answered",
-      correctAnswer,
-      timeLeft: timeLeft
+      try {
+        const qotdRef = doc(db, "qotd", today);
+        const qotdSnapshot = await getDoc(qotdRef);
+
+        if (!qotdSnapshot.exists()) {
+          setError("No quiz available for today.");
+          setLoading(false);
+          return;
+        }
+
+        const { questions: questionIDs } = qotdSnapshot.data();
+        if (!questionIDs || questionIDs.length === 0) {
+          setError("No questions found for today's quiz.");
+          setLoading(false);
+          return;
+        }
+
+        const questionRefs = questionIDs.map((id) => doc(db, "questions", id));
+        const questionSnapshots = await Promise.all(questionRefs.map((q) => getDoc(q)));
+
+        const questionsList = questionSnapshots
+          .filter((q) => q.exists())
+          .map((q) => {
+            const questionData = q.data();
+            return {
+              question: questionData.question,
+              choices: shuffleArray(questionData.choices),
+              correctAnswer: questionData.answer,
+              id: q.id,
+            };
+          });
+
+        if (questionsList.length === 0) {
+          setError("No valid questions found.");
+        } else {
+          setQuestions(questionsList);
+        }
+      } catch (err) {
+        console.error("Error fetching QOTD:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchQOTD();
+  }, []);
+
+  useEffect(() => {
+    if (timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft((prev) => parseFloat((prev - 0.1).toFixed(1))), 100);
+      return () => clearTimeout(timer);
+    } else {
+      handleNext(null);
+    }
+  }, [timeLeft]);
+
+  const handleNext = async (userAnswer) => {
+    if (questions.length === 0) return;
+
+    const today = new Date()
+      .toLocaleDateString("en-US", {
+        timeZone: "America/New_York",
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      })
+      .replace(/\//g, "-");
+
+    const currentQ = questions[currentQuestion];
+    const isCorrect = userAnswer?.toLowerCase() === currentQ.correctAnswer.toLowerCase();
+    
+    const newAnswer = {
+      question: currentQ.question,
+      selected: userAnswer,
+      correct: currentQ.correctAnswer,
     };
-    setResults((prevResults) => [...prevResults, updatedResult]);
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
+
+    setUserAnswers((prev) => [...prev, newAnswer]);
+
+// Update Firestore
+try {
+  const questionRef = doc(db, "questions", currentQ.id, "responses", anonID);
+  await setDoc(questionRef, { response: userAnswer, isCorrect });
+
+  const userRef = doc(db, "users", anonID, "qotd", today, "responses", currentQ.id);
+  await setDoc(userRef, { response: userAnswer, isCorrect });
+} catch (error) {
+  console.error("Error updating Firestore:", error);
+}
+
+    if (currentQuestion + 1 < questions.length) {
+      setCurrentQuestion((prev) => prev + 1);
       setTimeLeft(TIMER_DURATION);
     } else {
-      console.log("Final results before navigating:", [...results, updatedResult]); // Debugging
-      navigate("/results", { state: { results: [...results, updatedResult] } });
+      navigate("/results", { state: { userAnswers: [...userAnswers, newAnswer] } });
     }
   };
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen text-white text-2xl">Loading today's quiz...</div>;
+  }
+
+  if (error) {
+    return <div className="flex justify-center items-center h-screen text-white text-2xl">{error}</div>;
+  }
 
   return (
     <motion.div
@@ -76,24 +160,26 @@ export default function Quiz() {
         transition={{ repeat: Infinity, duration: 60, ease: "linear" }}
       ></motion.div>
 
-      <div className="relative z-10 flex flex-col items-center justify-center flex-grow w-full max-w-lg">
-        <p className="text-2xl md:text-3xl font-bold text-center leading-snug text-white">
-          {questions[currentQuestion].question}
-        </p>
-        <p className="mt-2 text-lg font-semibold text-white">{timeLeft}s</p>
-      </div>
+      {questions.length > 0 && (
+        <div className="relative z-10 flex flex-col items-center h-full w-full max-w-lg text-center px-6">
+          <div className="flex flex-col items-center justify-center flex-1 space-y-2">
+            <p className="text-3xl font-bold text-white px-6">{questions[currentQuestion].question}</p>
+            <p className="text-lg font-semibold text-white">{timeLeft.toFixed(1)}s</p>
+          </div>
 
-      <div className="relative z-10 w-full max-w-lg mt-auto pb-10 flex flex-col items-center space-y-4">
-        {questions[currentQuestion].options.map((option, index) => (
-          <button
-            key={index}
-            onClick={() => handleNext(option)}
-            className="w-full px-4 py-3 border-2 border-white rounded-md bg-transparent text-white text-lg hover:bg-white hover:text-black transition-all duration-300"
-          >
-            {option}
-          </button>
-        ))}
-      </div>
+          <div className="w-full max-w-lg px-6 flex flex-col space-y-4 pb-10">
+            {questions[currentQuestion].choices.map((option, index) => (
+              <button
+                key={index}
+                onClick={() => handleNext(option)}
+                className="w-full px-4 py-3 border-2 border-white rounded-md bg-transparent text-white text-lg hover:bg-white hover:text-black transition-all duration-300"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
